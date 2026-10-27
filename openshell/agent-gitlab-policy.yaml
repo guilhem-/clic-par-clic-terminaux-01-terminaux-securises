@@ -1,0 +1,28 @@
+# Effective OpenShell policy of the "demo-agent" terminal in the video, GitLab part only (the service also adds
+# the OpenRouter access): fixed parts of the agent-gitlab profile + the gitlab shared access, its endpoint bound to
+# the access-gitlab provider. Every host, method and program not listed here is refused by the proxy.
+version: 1
+filesystem_policy:
+  include_workdir: true
+  read_only: [/usr, /lib, /lib64, /bin, /sbin, /etc, /app, /opt, /proc, /dev/urandom, /dev/random, /dev/zero]
+  read_write: [/sandbox, /tmp, /dev/null, /dev/ptmx, /dev/pts, /dev/tty]
+landlock:
+  compatibility: hard_requirement
+network_policies:
+  access_gitlab:
+    endpoints:
+      - host: gitlab.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        rules:
+          - allow: { method: GET, path: "/**" }
+          - allow: { method: POST, path: "/**/git-upload-pack" }
+          - allow: { method: POST, path: "/**/git-receive-pack" }   # remove this line to refuse git push
+          - allow: { method: POST, path: "/api/v4/projects/*/merge_requests" }
+          - allow: { method: POST, path: "/api/v4/projects/*/merge_requests/*/notes" }
+        credential_binding: { provider: access-gitlab }
+    binaries:
+      - path: /usr/lib/git-core/git-remote-http
+      - path: /usr/bin/curl
+      - path: /usr/local/bin/opencode

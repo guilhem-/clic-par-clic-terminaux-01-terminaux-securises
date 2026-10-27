@@ -1,0 +1,23 @@
+# Starting shared access "gitlab": gitlab.com repositories, read and write (clone, push, API v4). The token
+# (GITLAB_PAT in .env, or typed by the administrator in the portal) goes to the terminaux-access secret.
+id: gitlab
+name: GitLab (shared token)
+description: Clone, push and gitlab.com API with the organization's token
+variables: [GITLAB_TOKEN]
+git: { host: gitlab.com, user: oauth2 }
+rule:
+  endpoints:
+    - host: gitlab.com
+      port: 443
+      protocol: rest
+      enforcement: enforce
+      rules:
+        - allow: { method: GET, path: "/**" }
+        - allow: { method: POST, path: "/**/git-upload-pack" }
+        - allow: { method: POST, path: "/**/git-receive-pack" }
+        - allow: { method: POST, path: "/api/v4/projects/*/merge_requests" }
+        - allow: { method: POST, path: "/api/v4/projects/*/merge_requests/*/notes" }
+  binaries:
+    - path: /usr/lib/git-core/git-remote-http
+    - path: /usr/bin/curl
+    - path: /usr/local/bin/opencode

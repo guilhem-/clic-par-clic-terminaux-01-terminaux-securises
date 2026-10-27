@@ -1,0 +1,11 @@
+# Provider profile with no host: only the credential. The value is substituted by OpenShell's proxy on the
+# endpoints that bind this provider (credential_binding), never anywhere else.
+id: access-gitlab
+display_name: GitLab (shared token)
+description: Shared access of a profile (self-service terminals)
+category: other
+credentials:
+  - name: token
+    description: GitLab (shared token)
+    env_vars: [GITLAB_TOKEN]
+    required: true

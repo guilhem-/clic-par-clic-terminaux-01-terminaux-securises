@@ -1,0 +1,20 @@
+# Starting profile "agent-gitlab": an agent (opencode, image registry.internal/terminals/agent) that only reaches
+# models (shared access openrouter) and GitLab (shared access gitlab); no other host, not even PyPI or npm.
+# The network part comes from the shared accesses listed under x-terminals.access.
+x-terminals:
+  id: agent-gitlab
+  name: Agent — models and GitLab
+  description: Model calls (OpenRouter) and GitLab with the organization's token; the rest of the network is refused
+  group: terminal-agent-gitlab
+  cpu: "2"
+  memory: 4Gi
+  access: [openrouter, gitlab]
+  approvals: false        # checked in the video: refused connections become access requests
+version: 1
+filesystem_policy:
+  include_workdir: true
+  read_only: [/usr, /lib, /lib64, /bin, /sbin, /etc, /app, /opt, /proc, /dev/urandom, /dev/random, /dev/zero]
+  read_write: [/sandbox, /tmp, /dev/null, /dev/ptmx, /dev/pts, /dev/tty]
+landlock:
+  compatibility: hard_requirement
+network_policies: {}

@@ -1,0 +1,48 @@
+# Starting profile "standard": Python and npm packages, GitHub read-only; the rest of the network is refused.
+x-terminals:
+  id: standard
+  name: Standard
+  description: PyPI and npm packages, GitHub read-only; the rest of the network is refused
+  group: terminal-standard
+  cpu: "2"
+  memory: 2Gi
+version: 1
+filesystem_policy:
+  include_workdir: true
+  read_only: [/usr, /lib, /lib64, /bin, /sbin, /etc, /app, /opt, /proc, /dev/urandom, /dev/random, /dev/zero]
+  read_write: [/sandbox, /tmp, /dev/null, /dev/ptmx, /dev/pts, /dev/tty]
+landlock:
+  compatibility: hard_requirement
+network_policies:
+  # pip install by the image's interpreter, read-only. Never the Open Terminal interpreter (/opt/open-terminal/…)
+  # nor a shell: OpenShell also recognizes a program by its parents, and those are the parents of every command.
+  pypi:
+    endpoints:
+      - { host: pypi.org, port: 443, protocol: rest, enforcement: enforce, access: read-only }
+      - { host: files.pythonhosted.org, port: 443, protocol: rest, enforcement: enforce, access: read-only }
+    binaries:
+      - path: /usr/local/bin/python3*
+      - path: /usr/bin/python3*
+  npm:
+    endpoints:
+      - { host: registry.npmjs.org, port: 443, protocol: rest, enforcement: enforce, access: read-only }
+    binaries:
+      - path: /usr/bin/node
+      - path: /usr/local/bin/node
+  # git clone and downloads from GitHub, read-only API; never git push.
+  github:
+    endpoints:
+      - host: github.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        rules:
+          - allow: { method: GET, path: "/**" }
+          - allow: { method: POST, path: "/**/git-upload-pack" }
+      - { host: api.github.com, port: 443, protocol: rest, enforcement: enforce, access: read-only }
+      - { host: codeload.github.com, port: 443, protocol: rest, enforcement: enforce, access: read-only }
+      - { host: objects.githubusercontent.com, port: 443, protocol: rest, enforcement: enforce, access: read-only }
+      - { host: raw.githubusercontent.com, port: 443, protocol: rest, enforcement: enforce, access: read-only }
+    binaries:
+      - path: /usr/lib/git-core/git-remote-http
+      - path: /usr/bin/curl
