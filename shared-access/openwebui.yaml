@@ -1,0 +1,28 @@
+# Starting shared access "openwebui": model calls through Open WebUI (namespace terminals), with its
+# OpenAI-compatible API, instead of OpenRouter directly. The key belongs to the Open WebUI service account
+# "Terminals (agents)" (role user: it only sees the models open to every user, or granted to it); it goes to the
+# terminaux-access secret and OpenShell's proxy substitutes it on the way out: it is never readable in the terminal.
+# OpenRouter models are served by Open WebUI in "responses" mode: opencode uses /openai/responses (provider
+# @ai-sdk/openai, see opencode/opencode.json); /api/models and /api/chat/completions (no streaming) serve curl.
+# Exact host of the in-cluster service: OpenShell accepts the private address it resolves to; allowed_ips limits
+# it to the cluster's service range (10.43.0.0/16 on k3s). Plain HTTP, inside the cluster.
+id: openwebui
+name: Models (Open WebUI)
+description: Model calls through Open WebUI, with the terminals' service account key; opencode and curl
+variables: [OPENWEBUI_API_KEY]
+env:
+  OPENWEBUI_BASE_URL: http://open-webui.terminals.svc.cluster.local:8080
+rule:
+  endpoints:
+    - host: open-webui.terminals.svc.cluster.local
+      port: 8080
+      allowed_ips: [10.43.0.0/16]
+      protocol: rest
+      enforcement: enforce
+      rules:
+        - allow: { method: GET, path: "/api/models" }
+        - allow: { method: POST, path: "/api/chat/completions" }
+        - allow: { method: POST, path: "/openai/responses" }
+  binaries:
+    - path: /usr/local/bin/opencode
+    - path: /usr/bin/curl

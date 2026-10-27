@@ -1,0 +1,20 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "openwebui": {
+      "npm": "@ai-sdk/openai",
+      "name": "Open WebUI",
+      "options": { "baseURL": "{env:OPENWEBUI_BASE_URL}/openai", "apiKey": "{env:OPENWEBUI_API_KEY}" },
+      "models": {
+        "deepseek/deepseek-v4.1-flash": { "name": "DeepSeek V4.1 Flash (Open WebUI)" }
+      }
+    }
+  },
+  "agent": {
+    "build": { "model": "openwebui/deepseek/deepseek-v4.1-flash" },
+    "plan": { "model": "openwebui/deepseek/deepseek-v4.1-flash" },
+    "title": { "model": "openwebui/deepseek/deepseek-v4.1-flash" },
+    "summary": { "model": "openwebui/deepseek/deepseek-v4.1-flash" },
+    "compaction": { "model": "openwebui/deepseek/deepseek-v4.1-flash" }
+  }
+}
