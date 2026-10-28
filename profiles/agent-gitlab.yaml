@@ -1,21 +1,46 @@
-# Starting profile "agent-gitlab": an agent (opencode, image registry.internal/terminals/agent) that only reaches
-# models (shared accesses openrouter, direct, and openwebui, through Open WebUI) and GitLab (shared access gitlab);
-# no other host, not even PyPI or npm.
-# The network part comes from the shared accesses listed under x-terminals.access.
+# Starting profile "agent-gitlab" (version 2): an agent (opencode, image registry.internal/terminals/agent) that only
+# reaches models (OpenRouter directly through the "openrouter" shared access, or Open WebUI with the user's own API
+# key) and GitLab (shared access "gitlab"); no other host, not even PyPI or npm.
+# Open WebUI is not a shared access: each user creates their own API key in Open WebUI (Settings > Account > API
+# keys) and saves it as a personal token (PAT) in the portal, host open-webui.terminals.svc.cluster.local. Their calls
+# are then made under their own account, with their own rights on the models, and are attributed to them. The
+# "openwebui" rule below opens the host; the PAT chosen at launch is bound to it (variable PAT_<NAME>, substituted by
+# OpenShell's proxy towards this host only). One credential per host: this rule must never coexist with a shared
+# access on the same host.
 x-terminals:
   id: agent-gitlab
   name: Agent — models and GitLab
-  description: Model calls (OpenRouter directly, or through Open WebUI) and GitLab with the organization's token; the rest of the network is refused
+  description: Model calls (OpenRouter directly, or Open WebUI with your personal key as a PAT) and GitLab with the organization's token; the rest of the network is refused
   group: terminal-agent-gitlab
   cpu: "2"
   memory: 4Gi
-  access: [openrouter, gitlab, openwebui]
+  access: [openrouter, gitlab]
   approvals: false        # checked in the video: refused connections become access requests
-version: 1
+version: 2
 filesystem_policy:
   include_workdir: true
   read_only: [/usr, /lib, /lib64, /bin, /sbin, /etc, /app, /opt, /proc, /dev/urandom, /dev/random, /dev/zero]
   read_write: [/sandbox, /tmp, /dev/null, /dev/ptmx, /dev/pts, /dev/tty]
 landlock:
   compatibility: hard_requirement
-network_policies: {}
+network_policies:
+  # Open WebUI (namespace terminals) through its OpenAI-compatible API, with the user's API key saved as a PAT.
+  # OpenRouter models are served by Open WebUI in "responses" mode: opencode uses /openai/responses (provider
+  # @ai-sdk/openai); /api/chat/completions (no streaming) and /api/models serve curl. Any other route
+  # (administration, key creation…): 403 policy_denied from the proxy. Exact host of the in-cluster service:
+  # OpenShell accepts the private address it resolves to; allowed_ips limits it to the cluster's service range
+  # (10.43.0.0/16 on k3s). Plain HTTP, inside the cluster.
+  openwebui:
+    endpoints:
+      - host: open-webui.terminals.svc.cluster.local
+        port: 8080
+        allowed_ips: [10.43.0.0/16]
+        protocol: rest
+        enforcement: enforce
+        rules:
+          - allow: { method: GET, path: "/api/models" }
+          - allow: { method: POST, path: "/api/chat/completions" }
+          - allow: { method: POST, path: "/openai/responses" }
+    binaries:
+      - path: /usr/local/bin/opencode
+      - path: /usr/bin/curl

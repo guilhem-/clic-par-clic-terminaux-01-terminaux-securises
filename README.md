@@ -19,10 +19,14 @@ The video then tests the policy from the terminal, with real commands:
 - the rule is changed **while the terminal runs**: the `git-receive-pack` block is removed, the same push
   is refused (`HTTP 403`), the block is put back, the push goes through again;
 - an administrator approves an access request (`curl` → `pypi.org`) for one terminal only, then withdraws it;
-- every refusal is recorded and classified (MITRE ATT&CK technique, severity);
-- an [opencode](https://opencode.ai) agent in the sandbox calls its models **through Open WebUI** (shared access
-  `openwebui`, key of a service account that is never readable in the terminal), writes a script, runs it and
-  commits it; an Open WebUI admin route with the same key is refused by the proxy (`policy_denied`, HTTP 403).
+- every refusal is recorded and classified (MITRE ATT&CK technique, severity), and followed in a Grafana dashboard
+  with its alerts (the cloud metadata alert fires on the `curl 169.254.169.254` of the first terminal);
+- an [opencode](https://opencode.ai) agent in the sandbox calls its models **through Open WebUI with the user's own
+  API key**: created by the user in Open WebUI, saved in the portal as a personal token (PAT `openwebui`) and
+  attached at launch, it is never readable in the terminal (`$PAT_OPENWEBUI` only holds a placeholder). The calls
+  are made under the user's account, with the user's rights, and are attributed to the user (Open WebUI's "Last
+  active" column). The agent writes a script, runs it and commits it; an Open WebUI admin route with the same key is
+  refused by the proxy (`policy_denied`, HTTP 403).
 
 Video: {{video}}
 
@@ -31,17 +35,17 @@ Video: {{video}}
 | File | Content |
 |---|---|
 | `shared-access/gitlab.yaml` | The "gitlab" shared access shown on screen: variable seen by the terminal, git identity, host, allowed requests, allowed programs |
-| `shared-access/openwebui.yaml` | The "openwebui" shared access: models through Open WebUI's OpenAI-compatible API, three allowed routes, `opencode` and `curl` only |
-| `opencode/opencode.json` | Project configuration of opencode: the `openwebui` provider (`@ai-sdk/openai`, Responses API) and the model pinned for every agent |
-| `profiles/agent-gitlab.yaml` | Profile "Agent — models and GitLab": no network of its own, only the `openrouter`, `gitlab` and `openwebui` shared accesses; `approvals` ticked in the video |
+| `opencode/opencode.json` | Project configuration of opencode: the `openwebui` provider (`@ai-sdk/openai`, Responses API, Open WebUI's in-cluster address written out, key `{env:PAT_OPENWEBUI}`) and the model pinned for every agent |
+| `profiles/agent-gitlab.yaml` | Profile "Agent — models and GitLab" (version 2): the `openrouter` and `gitlab` shared accesses, and its own `openwebui` rule (three model routes, `opencode` and `curl` only) where the user's PAT is bound; `approvals` ticked in the video |
+| `openshell/openwebui-pat-provider-profile.yaml` | Provider profile of the personal token `openwebui` (variable `PAT_OPENWEBUI`), with no host |
 | `profiles/standard.yaml` | Profile "Standard": PyPI and npm for their interpreters only, GitHub read-only |
 | `openshell/agent-gitlab-policy.yaml` | The effective OpenShell policy of the agent terminal (GitLab part), as the service composes it: the access rule with `credential_binding` on its endpoint |
 | `openshell/gitlab-provider-profile.yaml` | Provider profile with no host (credential only), imported in the user's workspace |
 | `demo/commands.sh` | Every command typed in the video, in order, with the output observed |
-| `.env.example` | The values you need (GitLab token, demo repository, Open WebUI service account key), empty |
+| `.env.example` | The values you need (GitLab token, demo repository, your personal Open WebUI API key), empty |
 
-The portal, its API and its administration screens belong to the organization's internal service and are not
-published here. The YAML files above use English keys; the service shown in the video uses the same structure
+The portal, its API and its administration screens, and the Grafana dashboard, belong to the organization's
+internal service and are not published here. The YAML files above use English keys; the service shown in the video uses the same structure
 with French keys (`nom`, `regle`, `acces`…). The OpenShell parts (`endpoints`, `rules`, `binaries`,
 `filesystem_policy`, `credential_binding`) are OpenShell's own format and work as is.
 
@@ -76,15 +80,22 @@ git -c credential.https://gitlab.com.helper='!f() { echo username=oauth2; echo "
 openshell --workspace demo policy set demo-agent --policy openshell/agent-gitlab-policy.yaml --wait
 ```
 
-### Models through Open WebUI (opencode)
+### Models through Open WebUI with your own key (opencode)
 
-1. In Open WebUI, create a service account with the **user** role (never admin), sign in with it once, and create
-   an API key (Settings > Account > API keys; `ENABLE_API_KEYS` must be on). The account only sees the models open
-   to every user or granted to it.
-2. Import `shared-access/openwebui.yaml` the same way as the GitLab access (profile of provider with
-   `OPENWEBUI_API_KEY`, provider holding the key, rule added to the sandbox policy with `credential_binding`), and set
-   `OPENWEBUI_BASE_URL` in the sandbox environment. Adapt the host to your Open WebUI service.
-3. In the sandbox, put `opencode/opencode.json` at the root of a git repository and run `opencode run "…"`.
+1. In Open WebUI, signed in with **your own account**, create your API key: user menu > Settings > Account > API keys
+   > Show > "Create new secret key" (`ENABLE_API_KEYS` and the `features.api_keys` permission must be on). The key
+   stays in a masked field: copy it with "Copy API key", never display it. "Create new key" later invalidates the
+   previous one. Your calls are then made under your account, with your rights on the models.
+2. Save it as a personal token (PAT): in the service, the portal's "Personal tokens (PAT)" section (name
+   `openwebui`, host `open-webui.terminals.svc.cluster.local`), then tick it under "PAT to attach" when launching an
+   "Agent — models and GitLab" terminal. Without the portal: import `openshell/openwebui-pat-provider-profile.yaml`,
+   create the provider from your environment (`export PAT_OPENWEBUI=…` in **your** shell, then
+   `openshell --workspace demo provider create --name pat-openwebui --type pat-openwebui --credential PAT_OPENWEBUI`),
+   add the `openwebui` rule of `profiles/agent-gitlab.yaml` to the sandbox policy with
+   `credential_binding: {provider: pat-openwebui}` on its endpoint, and attach the provider (`--provider pat-openwebui`).
+   Adapt the host to your Open WebUI service.
+3. In the sandbox, put `opencode/opencode.json` at the root of a git repository and run `opencode run "…"`. A PAT
+   carries no address: the in-cluster address of Open WebUI is written in the file (and in the `curl` commands).
    opencode uses the Responses API (`/openai/responses`): Open WebUI serves OpenRouter models in "responses" mode.
    If an image ships a managed `/etc/opencode/opencode.json`, its `model` wins over the project's: the project file
    therefore pins the model per agent (`build`, `plan`, `title`, `summary`, `compaction`).
@@ -96,10 +107,15 @@ in about eight seconds.
 ## What the video shows, and what it does not
 
 - Shown: Open WebUI's assistant computing in "My terminal" and the presentation it produces, single sign-on with Keycloak, a terminal launched from a profile / image / volume triplet, the
-  full-page terminal (xterm.js), the IDE (code-server) in the same sandbox, the "My terminal" connection used
-  by Open WebUI, shared accesses, access requests, recorded refusals, and opencode calling its models through Open WebUI.
+  full-page terminal (xterm.js) and its tabs (Alt+1, Alt+2…), the IDE (code-server) in the same sandbox, the "My
+  terminal" connection used by Open WebUI and its "Terminal" panel, shared accesses, a personal Open WebUI key saved
+  as a PAT, access requests, recorded refusals and the Grafana dashboard, and opencode calling its models through
+  Open WebUI with that key; Oliver's "Last active" time in Open WebUI's user list, seen by its administrator.
 - Not shown: the IDE on its own origin per terminal (in the service's code, not yet in the version filmed),
-  file refusals (Landlock refusals are not logged by OpenShell 0.1.5).
+  file refusals (Landlock refusals are not logged by OpenShell 0.1.5), a per-user consumption report for API calls
+  (Open WebUI's Analytics only count chat messages; its audit log, not enabled here, names the user of each request),
+  the per-person rows of the Grafana dashboard (service metrics not yet deployed: people appear under their OpenShell
+  workspace, `u-…`).
 - Limits observed: on first use in a volume, opencode tries `registry.npmjs.org` (refused, harmless: the provider is
   built into the binary); models served by direct Anthropic or Gemini connections in Open WebUI did not answer on the
   day of recording (unrelated to the terminals) — OpenRouter models did. Right after a launch, the console needs a few seconds before Open Terminal answers; a `DELETE`

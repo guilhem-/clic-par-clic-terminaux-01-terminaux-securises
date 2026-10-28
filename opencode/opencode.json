@@ -4,7 +4,10 @@
     "openwebui": {
       "npm": "@ai-sdk/openai",
       "name": "Open WebUI",
-      "options": { "baseURL": "{env:OPENWEBUI_BASE_URL}/openai", "apiKey": "{env:OPENWEBUI_API_KEY}" },
+      "options": {
+        "baseURL": "http://open-webui.terminals.svc.cluster.local:8080/openai",
+        "apiKey": "{env:PAT_OPENWEBUI}"
+      },
       "models": {
         "deepseek/deepseek-v4.1-flash": { "name": "DeepSeek V4.1 Flash (Open WebUI)" }
       }

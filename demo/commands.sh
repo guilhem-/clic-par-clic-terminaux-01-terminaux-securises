@@ -22,7 +22,16 @@ python3 -m cowsay -t Bonjour
 curl -sS https://gitlab.com             # curl: (7) Failed to connect to gitlab.com port 443 ... Could not connect to server
 curl -sS http://169.254.169.254/        # same refusal: cloud metadata (relayed as T1552.005, severe)
 
+# --- Before the agent terminal: Oliver's personal Open WebUI key, saved as a PAT (no command, two screens) ---------
+# Open WebUI: user menu > Settings > Account > API keys > Show > "Create new secret key": the key stays in a masked
+#   field; "Copy API key" (never the eye button).
+# Portal, "Personal tokens (PAT)": name openwebui, host open-webui.terminals.svc.cluster.local, value pasted into the
+#   masked field, Save: the list shows $PAT_OPENWEBUI. The value goes straight to OpenShell (provider pat-openwebui,
+#   see openshell/openwebui-pat-provider-profile.yaml); it is never stored by the portal nor visible in a terminal.
+# Launch form: profile "Agent — models and GitLab", under "PAT to attach" tick "openwebui -> open-webui.terminals...".
+
 # --- "Agent — models and GitLab" terminal (image terminals/agent:1) ----------------------------
+# Alt+1, Alt+2, Alt+3 in the full-page terminal switch between the user's terminals (one tab each).
 echo $GITLAB_TOKEN                      # openshell:resolve:env:v<number>_GITLAB_TOKEN (a placeholder, not the token)
 curl -s -H "PRIVATE-TOKEN: $GITLAB_TOKEN" https://gitlab.com/api/v4/user | grep -o '"username":"[^"]*"'
                                         # the token's bot account: the proxy swapped the placeholder for the value
@@ -50,17 +59,28 @@ curl -sS -o /dev/null -w "%{http_code}\n" https://pypi.org/simple/    # 200; the
 cd ~/demo && git commit -qam "From the IDE" && git push && curl -sS https://github.com
                                         # push allowed, GitHub refused
 
-# --- opencode through Open WebUI (shared access "openwebui"), agent terminal -----------------------
+# --- Administration: recorded refusals, then the Grafana dashboard "Terminals — full monitoring" -----------------
+# (active terminals, sandboxes per image, CPU / memory / disk per terminal, refused hosts and programs, MITRE ATT&CK
+# techniques, allowed connections per rule, and the "cloud metadata or Kubernetes API" alert fired by the
+# curl 169.254.169.254 above). The dashboard belongs to the organization's internal monitoring: not published here.
+
+# --- opencode through Open WebUI, with Oliver's personal key (PAT "openwebui"), agent terminal --------------------
 # Prepared off camera: a git repository with the project configuration of opencode (opencode/opencode.json).
 mkdir -p ~/atelier && cd ~/atelier && git init -q && cp <this repository>/opencode/opencode.json .
-echo $OPENWEBUI_API_KEY                 # openshell:resolve:env:v<number>_OPENWEBUI_API_KEY (a placeholder)
-curl -s -H "Authorization: Bearer $OPENWEBUI_API_KEY" $OPENWEBUI_BASE_URL/api/models -o models.json   && python3 -c "import json; [print(m['id']) for m in json.load(open('models.json'))['data']]"
-                                        # the models Open WebUI opens to its users (service account, role user)
+echo $PAT_OPENWEBUI                     # openshell:resolve:env:… (a placeholder, not the key)
+# A PAT carries no address: Open WebUI's in-cluster address is written out.
+curl -s -H "Authorization: Bearer $PAT_OPENWEBUI" http://open-webui.terminals.svc.cluster.local:8080/api/models -o modeles.json && python3 -c "import json; [print(m['id']) for m in json.load(open('modeles.json'))['data']]"
+                                        # the models Open WebUI opens to Oliver (his own rights)
 opencode run "Write stats.py that draws one thousand values from a normal distribution with a fixed seed and prints their mean and standard deviation, run it with python3, then make a git commit with the message 'Statistics'."
                                         # "> build · deepseek/deepseek-v4.1-flash", file written, run, commit (about 12 s)
 git log --oneline -1                    # <hash> (HEAD -> master) Statistics
-curl -s -w "
-HTTP %{http_code}
-" -H "Authorization: Bearer $OPENWEBUI_API_KEY" $OPENWEBUI_BASE_URL/api/v1/users/
+curl -s -w "\nHTTP %{http_code}\n" -H "Authorization: Bearer $PAT_OPENWEBUI" http://open-webui.terminals.svc.cluster.local:8080/api/v1/users/
                                         # {"error":"policy_denied", ... "GET /api/v1/users/ not permitted by policy" ...}
                                         # HTTP 403: refused by OpenShell's proxy before it reaches Open WebUI
+# Open WebUI, administrator: Admin panel > Users, column "Last active": Oliver's last activity follows his agent's
+# calls (each request authenticated with his key updates it). Open WebUI's Analytics only count chat messages.
+
+# --- Open WebUI, "My terminal" = the agent terminal (portal button "Default") ------------------------------------
+# Request: "In my demo folder, show the last three commits, then run curl -sS https://github.com, and sum up what
+# you get." Then, in the right panel, "Terminal" section (same sandbox):
+ls demo && echo $GITLAB_TOKEN           # the demo folder, and still the placeholder instead of the token

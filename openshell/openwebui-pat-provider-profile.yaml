@@ -1,0 +1,13 @@
+# Provider profile of a personal token (PAT) with no host: only the credential. Here, the user's own Open WebUI API
+# key, saved in the portal as the PAT "openwebui" (variable PAT_OPENWEBUI). The value is substituted by OpenShell's
+# proxy on the endpoints that bind this provider (credential_binding on the "openwebui" rule of the agent-gitlab
+# profile), never anywhere else.
+id: pat-openwebui
+display_name: PAT openwebui
+description: Personal token of a user (self-service terminals)
+category: other
+credentials:
+  - name: token
+    description: Personal token
+    env_vars: [PAT_OPENWEBUI]
+    required: true
